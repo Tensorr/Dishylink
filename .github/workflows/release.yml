@@ -45,7 +45,7 @@ jobs:
             || gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --title "$tag" --notes ""
 
   release-mac:
-    needs: prepare
+    needs: [prepare, release-extension, release-win]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
@@ -76,7 +76,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-extension:
-    needs: prepare
+    needs: [prepare, release-win]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
