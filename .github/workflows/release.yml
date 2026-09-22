@@ -58,13 +58,9 @@ jobs:
       # latest-mac.yml covering arm64 and x64. Two separate jobs would each
       # overwrite the other's yml on the release and strand one arch.
       - run: npm run release:mac
-      - name: Attach the store archives to the draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ needs.prepare.outputs.tag }}" .output/dishylink-*.zip \
-            --clobber --repo "$GITHUB_REPOSITORY"
-
+          
   release-win:
     needs: prepare
     runs-on: windows-latest
@@ -76,12 +72,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run release:win
-      - name: Attach the store archives to the draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ needs.prepare.outputs.tag }}" .output/dishylink-*.exe \
-            --clobber --repo "$GITHUB_REPOSITORY"
+
 
   release-extension:
     needs: [prepare, release-mac, release-win]
@@ -100,5 +93,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ needs.prepare.outputs.tag }}" .output/dishylink-*.zip \
+          gh release upload "${{ needs.prepare.outputs.tag }}" .output/dishylink-*.* \
             --clobber --repo "$GITHUB_REPOSITORY"
