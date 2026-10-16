@@ -17,6 +17,7 @@ import {
   type PlotFrame,
 } from "./chartMarks";
 import { useNow } from "../../hooks/useNow";
+import { bucketSamples, type BucketPoint } from "../../lib/chartBuckets";
 
 export interface ChartSeries {
   id: string;
@@ -54,13 +55,6 @@ interface TelemetryChartProps {
    *  right edge — steps with the figure rather than sliding every second. Left
    *  unset, the window ends on the ticking clock as before. */
   windowEndMs?: number;
-}
-
-interface BucketPoint {
-  timestampMs: number;
-  values: (number | null)[];
-  /** No samples at all between the previous bucket and this one. */
-  hasGapBefore: boolean;
 }
 
 const PLOT_MARGIN = { top: 8, right: 12, bottom: 22, left: 46 };
@@ -161,57 +155,12 @@ export function TelemetryChart({
   const windowEndMs = windowEndOverrideMs ?? tickingNowMs;
   const windowStartMs = windowEndMs - windowMinutes * 60_000;
 
-  const { buckets, bucketSpanMs } = useMemo<{
-    buckets: BucketPoint[];
-    bucketSpanMs: number;
-  }>(() => {
-    // Half-open [start, end): with a frozen end, samples past the boundary would
-    // otherwise clamp into the last bucket and creep its mean every second,
-    // defeating the freeze. On the live clock nothing is newer than now, so this
-    // excludes only a sample landing exactly on it — no effect on those charts.
-    const visibleSamples = samples.filter(
-      (sample) => sample.timestampMs >= windowStartMs && sample.timestampMs < windowEndMs,
-    );
-    if (visibleSamples.length === 0) return { buckets: [], bucketSpanMs: 0 };
-    const bucketCount = Math.min(Math.max(Math.floor(plotWidth / 2), 30), visibleSamples.length);
-    const bucketSpanMs = (windowEndMs - windowStartMs) / bucketCount;
-    const grouped: TelemetrySample[][] = Array.from({ length: bucketCount }, () => []);
-    for (const sample of visibleSamples) {
-      const bucketIndex = Math.min(
-        Math.floor((sample.timestampMs - windowStartMs) / bucketSpanMs),
-        bucketCount - 1,
-      );
-      grouped[bucketIndex].push(sample);
-    }
-    const populated = grouped
-      .map((bucketSamples, bucketIndex) => {
-        if (bucketSamples.length === 0) return null;
-        return {
-          timestampMs: windowStartMs + (bucketIndex + 0.5) * bucketSpanMs,
-          values: series.map((chartSeries) => {
-            const seriesValues = bucketSamples
-              .map(chartSeries.getValue)
-              .filter((value): value is number => value !== null && Number.isFinite(value));
-            if (seriesValues.length === 0) return null;
-            if (chartSeries.bucketReduce === "max") return Math.max(...seriesValues);
-            if (chartSeries.bucketReduce === "min") return Math.min(...seriesValues);
-            return seriesValues.reduce((sum, value) => sum + value, 0) / seriesValues.length;
-          }),
-          hasGapBefore: false,
-        };
-      })
-      .filter((bucket): bucket is BucketPoint => bucket !== null);
-
-    // Empty buckets are dropped above, so a hole shows up as two neighbours
-    // further apart than one bucket. Anything wider than that — and wider than
-    // a dropped sample or two — is time we never measured.
-    const gapThresholdMs = Math.max(bucketSpanMs * 1.5, minGapMs);
-    for (let index = 1; index < populated.length; index++) {
-      populated[index].hasGapBefore =
-        populated[index].timestampMs - populated[index - 1].timestampMs > gapThresholdMs;
-    }
-    return { buckets: populated, bucketSpanMs };
-  }, [samples, series, windowStartMs, windowEndMs, plotWidth, minGapMs]);
+  // Buckets sit on fixed clock instants (see chartBuckets), so the window
+  // sliding each second moves the points without regrouping them.
+  const { buckets, bucketSpanMs } = useMemo(
+    () => bucketSamples(samples, series, windowStartMs, windowEndMs, plotWidth, minGapMs),
+    [samples, series, windowStartMs, windowEndMs, plotWidth, minGapMs],
+  );
 
   // Ceiling and gridlines come out of ONE derivation: the ceiling is a whole
   // number of tick steps, so the top gridline is always the ceiling. Choosing
