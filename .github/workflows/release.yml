@@ -57,7 +57,7 @@ jobs:
       # Both mac archs in one invocation: electron-builder writes a single
       # latest-mac.yml covering arm64 and x64. Two separate jobs would each
       # overwrite the other's yml on the release and strand one arch.
-      - run: npm run release:mac
+      - run: npm run release:mac -- -c.publish.owner=${{ github.repository_owner }} -c.publish.repo=${{ github.event.repository.name }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
@@ -71,7 +71,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run release:win
+      - run: npm run release:win -- -c.publish.owner=${{ github.repository_owner }} -c.publish.repo=${{ github.event.repository.name }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
