@@ -57,6 +57,10 @@ jobs:
       # Both mac archs in one invocation: electron-builder writes a single
       # latest-mac.yml covering arm64 and x64. Two separate jobs would each
       # overwrite the other's yml on the release and strand one arch.
+      # The publish owner/repo override points electron-builder at the repo this
+      # workflow runs in. electron-builder.yml names the upstream repo, so in a
+      # fork it would otherwise target upstream's release, find it already
+      # published, skip the upload and still exit green.
       - run: npm run release:mac -- -c.publish.owner=${{ github.repository_owner }} -c.publish.repo=${{ github.event.repository.name }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,7 +75,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Same publish override as release-mac. bash, not the runner's default
+      # pwsh: PowerShell splits `-c.publish.repo=…` at the dot before npm sees
+      # it, and electron-builder then reads `.publish.repo=…` as a config path.
       - run: npm run release:win -- -c.publish.owner=${{ github.repository_owner }} -c.publish.repo=${{ github.event.repository.name }}
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
