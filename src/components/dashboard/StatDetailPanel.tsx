@@ -14,6 +14,7 @@ import { EnergyHistoryPanel } from "./EnergyHistoryPanel";
 import { averageOf, energyKWh, coverageNote } from "../../lib/statDetails";
 import { useEnergyHistory, type EnergyRange } from "../../hooks/useEnergyHistory";
 import { useNow } from "../../hooks/useNow";
+import { useLiveUpdateInterval } from "../../lib/liveUpdateInterval";
 import type { TelemetrySample, OutageEvent } from "@core/telemetry";
 import { SegmentedControl } from "../ui/segmented-control";
 import { Explainer } from "../ui/explainer";
@@ -96,7 +97,7 @@ export function StatDetailPanel({ detail, samples }: StatDetailPanelProps) {
   const [windowMinutes, setWindowMinutes] = useState(detail.defaultWindowMinutes ?? 15);
 
   const getSeriesValue = detail.series[0].getValue;
-  const nowMs = useNow();
+  const nowMs = useNow(useLiveUpdateInterval());
   // The same function the chart clips with, so the figures below and the picture
   // above describe one stretch of time by construction. It cuts by clock, which
   // is the only thing that works here: the buffer runs at 1 Hz solely while

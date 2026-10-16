@@ -23,6 +23,12 @@ import {
   subscribeToToolbarStyle,
   type ToolbarStyle,
 } from "../../lib/toolbarStyle";
+import {
+  LIVE_UPDATE_INTERVALS_MS,
+  setLiveUpdateInterval,
+  useLiveUpdateInterval,
+  type LiveUpdateIntervalMs,
+} from "../../lib/liveUpdateInterval";
 import { selfDeviceHost } from "../../lib/selfDeviceHost";
 import { badgeModeHost, DEFAULT_BADGE_MODE, type BadgeMode } from "../../lib/badgeMode";
 import { displayName, isClientDevice } from "../network/networkFormat";
@@ -280,6 +286,7 @@ function BadgeModeRow() {
 
 export function AppSettingsTab({ clients }: { clients: WifiClientJson[] }) {
   const toolbarStyle = useSyncExternalStore(subscribeToToolbarStyle, readToolbarStyle);
+  const liveUpdateIntervalMs = useLiveUpdateInterval();
   const menuBar = useMenuBarThroughput();
   const hideTrayIcon = useHideTrayIcon();
   const trayStyle = useTrayIconStyle();
@@ -304,6 +311,28 @@ export function AppSettingsTab({ clients }: { clients: WifiClientJson[] }) {
             <SelectItem value='rail' className={selectItemClass}>
               Left rail
             </SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingRow>
+
+      <SettingRow
+        title='Live updates'
+        info='How often the dashboard asks the dish for new readings and redraws. Charts keep one-second detail at every setting — the dish holds the last fifteen minutes, and each refresh collects all of it — so a slower rate only means the newest readings arrive in bigger steps, for less CPU. Recording is separate and unaffected.'
+        caption='How often the dashboard refreshes'
+      >
+        <Select
+          value={String(liveUpdateIntervalMs)}
+          onValueChange={(value) => setLiveUpdateInterval(Number(value) as LiveUpdateIntervalMs)}
+        >
+          <SelectTrigger className={triggerClass} style={{ width: 138 }}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className={selectContentClass}>
+            {LIVE_UPDATE_INTERVALS_MS.map((intervalMs) => (
+              <SelectItem key={intervalMs} value={String(intervalMs)} className={selectItemClass}>
+                {intervalMs === 1_000 ? "Every second" : `Every ${intervalMs / 1_000} seconds`}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </SettingRow>

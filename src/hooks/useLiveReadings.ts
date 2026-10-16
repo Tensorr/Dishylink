@@ -12,6 +12,7 @@
 import { useMemo } from "react";
 import type { TelemetrySample } from "@core/telemetry";
 import { useNow } from "./useNow";
+import { useLiveUpdateInterval } from "../lib/liveUpdateInterval";
 import {
   powerBucketMean,
   powerBucketEndMs,
@@ -52,7 +53,7 @@ export interface LiveReadings {
 }
 
 export function useLiveReadings(samples: TelemetrySample[]): LiveReadings {
-  const nowMs = useNow();
+  const nowMs = useNow(useLiveUpdateInterval());
 
   // The raw per-second draw is spiky, so the tile shows the mean of the last
   // completed 5s bucket, stepping at each boundary rather than flickering. The

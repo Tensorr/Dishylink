@@ -1,5 +1,6 @@
-// Polling loop against the dish: status every 2s, history every 5s,
-// obstruction map every 30s. All state a component needs comes out of here.
+// Polling loop against the dish: status and history at the live update interval
+// (1s by default), obstruction map every 30s. All state a component needs comes
+// out of here.
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -12,6 +13,7 @@ import {
 import { GrpcWebError } from "@core/grpcWeb";
 import { subscribeRouterStatus } from "../lib/routerStatusFeed";
 import { apiRequest } from "../lib/apiHost";
+import { useLiveUpdateInterval } from "../lib/liveUpdateInterval";
 import {
   TelemetryAccumulator,
   decodeOutageEvents,
@@ -40,15 +42,12 @@ async function fetchPersistedSamples(): Promise<TelemetrySample[]> {
   }
 }
 
-// The dish's history ring advances once a second, so 1s is its true sample
-// rate — polling faster just reads the same value twice.
-const STATUS_POLL_MS = 1_000;
-// 1s, matching the dish's own sample clock. Every poll returns the whole 900-
-// sample ring, so this is not about resolution — that is already 1 Hz at any
-// poll rate — but about freshness: at 5s the chart's leading edge jumped five
-// samples at a time while the stat tiles (polled every second) moved smoothly,
-// which reads as a laggy chart rather than a live one.
-const HISTORY_POLL_MS = 1_000;
+// Status and history both poll at the user's live update interval (1s by
+// default, the dish's own sample clock — polling faster just reads the same
+// value twice). They share it so the stat tiles and the chart's leading edge
+// move together: history on a slower clock than status reads as a laggy chart
+// beside live tiles. Every history poll returns the whole 900-sample ring, so a
+// slower interval costs freshness, never resolution.
 const OBSTRUCTION_POLL_MS = 30_000;
 const LOCATION_RETRY_MS = 60_000; // picks up the app-side toggle without a reload
 const SAMPLE_RETENTION_MS = 6 * 3_600_000; // keep six hours of clock, gaps included
@@ -90,6 +89,14 @@ export function useDishTelemetry(): DishTelemetry {
   const [dishLocation, setDishLocation] = useState<DishLocationJson | null>(null);
   const [locationDenied, setLocationDenied] = useState(false);
   const accumulatorRef = useRef(new TelemetryAccumulator(SAMPLE_RETENTION_MS));
+  const liveIntervalMs = useLiveUpdateInterval();
+  // The status and history pollers, once the client has loaded. They are
+  // scheduled by their own effect so a new interval reschedules them without
+  // reloading the client or reseeding the buffer.
+  const livePollsRef = useRef<{ status: () => Promise<void>; history: () => Promise<void> } | null>(
+    null,
+  );
+  const [livePollsReady, setLivePollsReady] = useState(false);
 
   // Debounce offline: it trips only after the link has stayed unanswered for
   // STALE_AFTER_MS, and clears on reconnect — a blip's timer is cleared before it
@@ -216,8 +223,9 @@ export function useDishTelemetry(): DishTelemetry {
           .then((info) => !disposed && setDeviceInfo(info))
           .catch(() => {});
         await Promise.all([pollStatus(), pollHistory(), pollObstructionMap(), pollLocation()]);
-        timerIds.push(window.setInterval(pollStatus, STATUS_POLL_MS));
-        timerIds.push(window.setInterval(pollHistory, HISTORY_POLL_MS));
+        if (disposed) return;
+        livePollsRef.current = { status: pollStatus, history: pollHistory };
+        setLivePollsReady(true);
         timerIds.push(window.setInterval(pollObstructionMap, OBSTRUCTION_POLL_MS));
         timerIds.push(window.setInterval(pollLocation, LOCATION_RETRY_MS));
       } catch {
@@ -227,10 +235,21 @@ export function useDishTelemetry(): DishTelemetry {
 
     return () => {
       disposed = true;
+      livePollsRef.current = null;
       unsubscribeRouterStatus();
       timerIds.forEach((timerId) => window.clearInterval(timerId));
     };
   }, []);
+
+  useEffect(() => {
+    const livePolls = livePollsRef.current;
+    if (!livePollsReady || !livePolls) return;
+    const timerIds = [
+      window.setInterval(livePolls.status, liveIntervalMs),
+      window.setInterval(livePolls.history, liveIntervalMs),
+    ];
+    return () => timerIds.forEach((timerId) => window.clearInterval(timerId));
+  }, [livePollsReady, liveIntervalMs]);
 
   return {
     connectionState,

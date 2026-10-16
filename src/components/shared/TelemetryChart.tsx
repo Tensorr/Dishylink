@@ -17,6 +17,7 @@ import {
   type PlotFrame,
 } from "./chartMarks";
 import { useNow } from "../../hooks/useNow";
+import { useLiveUpdateInterval } from "../../lib/liveUpdateInterval";
 import { bucketSamples, type BucketPoint } from "../../lib/chartBuckets";
 
 export interface ChartSeries {
@@ -151,7 +152,7 @@ export function TelemetryChart({
   // The clock still ticks the chart on every render (an outage must keep growing
   // its unmeasured right edge even while nothing arrives); an override only pins
   // where the window ends. Called unconditionally — a hook cannot be skipped.
-  const tickingNowMs = useNow();
+  const tickingNowMs = useNow(useLiveUpdateInterval());
   const windowEndMs = windowEndOverrideMs ?? tickingNowMs;
   const windowStartMs = windowEndMs - windowMinutes * 60_000;
 
